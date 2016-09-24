@@ -27,40 +27,44 @@ uint8_t ui_slider;
 uint8_t ui_stepper;
 uint8_t ui_rectangle;
 
-/*
-   Traditional Arduino setup routine
+/***
+* Extra stuff
+***/
+uint8_t text_temp;
+String textFieldString = "";
+unsigned long lastUpdated = 0;
+unsigned long updateRate = 500; // in milliseconds
 
-   Initialize the SimbleeForMobile environment.
- */
+// include newlib printf float support (%f used in sprintf below)
+asm(".global _printf_float");
+
 void setup() {
   Serial.begin(9600);
   Serial.println("Started");
 
-  // put your setup code here, to run once:
   SimbleeForMobile.deviceName = "Name";
   SimbleeForMobile.advertisementData = "Data";
   SimbleeForMobile.domain = "template.simblee.com";
 
-  // Begin Simblee UI
   SimbleeForMobile.begin();
 }
 
-/*
-   The traditional Arduino loop method
-
-   Enable SimbleeForMobile functionality by calling the process method
-   each time through the loop. This method must be called regularly for
-   functionality to work.
- */
 void loop() {
-  // put your main code here, to run repeatedly:
-  // process must be called in the loop for Simblee UI
+  unsigned long loopTime = millis();
+
+  if (SimbleeForMobile.updatable && updateRate < (loopTime - lastUpdated)) { 
+    lastUpdated = loopTime;
+    
+    float temp = Simblee_temperature(CELSIUS);
+
+    char buf[16];
+    sprintf(buf, "%02f", temp);
+    SimbleeForMobile.updateText(text_temp, buf);
+  }
+
   SimbleeForMobile.process();
 }
 
-/*
-   SimbleeForMobile UI callback requesting the user interface
- */
 void ui() {
   color_t grayBackgroundColor = rgb(128, 128, 128);
   SimbleeForMobile.beginScreen(grayBackgroundColor);
@@ -79,14 +83,42 @@ void ui() {
   const char* const segment_collection[3] = {alice, dave, peter};
   ui_segment = SimbleeForMobile.drawSegment(50, MAX_HEIGHT - 180, 200, segment_collection, 3);
 
+  
+  text_temp = SimbleeForMobile.drawText(40, 10, "Simblee Temperature");
+  SimbleeForMobile.setEvents(ui_button, EVENT_PRESS);  
+
   SimbleeForMobile.endScreen();
 }
 
-/*
-   SimbleeForMobile event callback method
- */
-void ui_event(event_t &event)
-{
+void ui_event(event_t &event) { 
+
+  if (event.id == ui_button && event.type == EVENT_PRESS) {
+    SimbleeForMobile.updateText(ui_text, textFieldString.c_str());
+  } else if (event.id == ui_stepper) {
+    SimbleeForMobile.updateValue(ui_slider, event.value);
+  } else if (event.id == ui_switch) {
+    if (event.value == 0) {
+      SimbleeForMobile.updateText(ui_text, "Switch off");
+    } else if (event.value == 1) {
+      SimbleeForMobile.updateText(ui_text, "Switch on");
+    }
+  } else if (event.id == ui_segment) {
+    switch (event.value) {
+      case 0:
+        SimbleeForMobile.updateText(ui_text, "Alice text");
+        break;
+
+      case 1:
+        SimbleeForMobile.updateText(ui_text, "Dave text");
+        break;
+
+      case 2:
+        SimbleeForMobile.updateText(ui_text, "Peter text");
+        break;
+    }
+  } else if (event.id == ui_textField) { 
+    textFieldString = String(event.text);
+  }
 }
 
 
